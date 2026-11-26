@@ -50,6 +50,7 @@ button:not(:disabled) { cursor: pointer; }
 .scene[data-level="villam"] img { object-position: 48% 43%; }
 .scene[data-level="dupla"] img { object-position: 50% 46%; }
 .scene[data-level="vihar"] img { object-position: 57% 43%; }
+.scene[data-level="eszaki"] img { object-position: 45% 33%; }
 .scene-title { position: absolute; inset: auto clamp(1rem, 3vw, 2rem) 1.75rem; }
 .scene-title p { margin: 0 0 .2rem; color: #b7f6ec; font-weight: 700; font-size: 1rem; }
 .scene h1 { margin: 0; font-weight: 850; font-size: clamp(2.25rem, 5vw, 4.6rem); line-height: 1.03; letter-spacing: -.055em; }
@@ -57,6 +58,13 @@ button:not(:disabled) { cursor: pointer; }
 .mission h2 { margin: 0; font-weight: 820; font-size: clamp(1.75rem, 3.3vw, 2.8rem); letter-spacing: -.045em; line-height: 1.12; }
 .mission p { margin: 0; line-height: 1.48; }
 #story { color: var(--muted); font-size: 1rem; }
+.cloud-difference {
+  width: 100%; padding: .45rem .7rem; border: 1px solid #706c9e;
+  border-radius: .65rem; background: #28294e; color: #e3dfff; font-weight: 720;
+}
+.cloud-difference[data-on-target="true"] {
+  border-color: #70e8c3; background: #173b46; color: #a9fbe0;
+}
 .mission h3 { margin: 0; font-size: .93rem; font-weight: 760; }
 .receiver, .stash { width: 100%; }
 .receiver {
@@ -114,6 +122,19 @@ button:not(:disabled) { cursor: pointer; }
   position: absolute; top: 19%; left: 33%; z-index: 0; color: #fff2a8; font-size: clamp(3rem, 9vw, 7rem);
   line-height: 1; text-shadow: 0 0 .4em #ffad35, 0 0 .85em #f9c657; pointer-events: none;
 }
+.sky-surprise[data-kind="aurora"] {
+  inset: 0; overflow: hidden;
+}
+.sky-surprise[data-kind="aurora"]::before,
+.sky-surprise[data-kind="aurora"]::after {
+  content: ""; position: absolute; inset: -38% -28% 62%;
+  border: 0 solid #94ffcd; border-bottom-width: .55rem; border-radius: 50%;
+  box-shadow: 0 .8rem 2.2rem #41ffcdbb, 0 1.7rem 3rem #a459faaa;
+  transform: rotate(-12deg);
+}
+.sky-surprise[data-kind="aurora"]::after {
+  inset: -24% -37% 54%; border-color: #c7a7ff; transform: rotate(9deg);
+}
 .answer-form label { display: block; margin-bottom: .34rem; font-weight: 700; }
 .answer-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .48rem; }
 .answer-actions button, #next-mission, .hint {
@@ -144,6 +165,7 @@ button:not(:disabled) { cursor: pointer; }
   .socket.just-dropped .lightning { animation: fit .19s ease-out; }
   .sky-surprise[data-kind="comet"]:not([hidden]) { animation: fly-in .9s ease-out both; }
   .sky-surprise[data-kind="star"]:not([hidden]) { animation: twinkle .85s ease-out both; }
+  .sky-surprise[data-kind="aurora"]:not([hidden]) { animation: aurora-light 1.4s ease-out both; }
   .sky-surprise[data-kind="dance"]:not([hidden]),
   .receiver:has(.tray[data-awake="true"]) .robot-face { animation: wiggle .8s ease-in-out; }
   @keyframes twinkle {
@@ -161,6 +183,7 @@ button:not(:disabled) { cursor: pointer; }
     to { transform: translate(0, 0) scale(1); }
   }
   @keyframes fit { from { transform: scale(.78); } to { transform: scale(1); } }
+  @keyframes aurora-light { from { opacity: 0; } to { opacity: 1; } }
 }
 
 .levels { display: flex; flex-wrap: wrap; gap: .35rem; }
@@ -274,9 +297,11 @@ button:not(:disabled) { cursor: pointer; }
           <button type="button" data-level="villam" aria-pressed="false">Villámcsere</button>
           <button type="button" data-level="dupla" aria-pressed="false">Villámdupla</button>
           <button type="button" data-level="vihar" aria-pressed="false">Viharkód</button>
+          <button type="button" data-level="eszaki" aria-pressed="false">Északi fény</button>
         </nav>
         <h2 id="mission-heading">Ébreszd fel Cikcakkot!</h2>
         <p id="story"></p>
+        <p id="cloud-difference" class="cloud-difference" aria-live="polite" aria-atomic="true" hidden></p>
         <div class="boards">
           <section class="receiver" aria-labelledby="tray-label">
             <div class="panel-heading">
@@ -323,6 +348,7 @@ button:not(:disabled) { cursor: pointer; }
 
 const heading = document.querySelector("#mission-heading");
 const story = document.querySelector("#story");
+const cloudDifference = document.querySelector("#cloud-difference");
 const tray = document.querySelector("#tray");
 const reserve = document.querySelector("#reserve");
 const powerCount = document.querySelector("#power-count");
@@ -347,6 +373,7 @@ const scenery = {
   villam: ["cloud-exchange.webp", "Felhővölgy"],
   dupla: ["aurora-lab.webp", "Sarki obszervatórium"],
   vihar: ["storm-valley.webp", "Zivatarállomás"],
+  eszaki: ["aurora-lab.webp", "Sarkifény-terasz"],
 };
 const levelButtons = [...document.querySelectorAll("[data-level]")];
 const trayName = document.querySelector("#tray-name");
@@ -397,6 +424,18 @@ for (let bonus = 1; bonus <= 4; bonus++) {
   }
 }
 
+const auroraPuzzles = [];
+for (let blue = 3; blue <= 8; blue++) {
+  for (let gold = blue + 2; gold <= 18; gold++) {
+    for (let difference = 2; difference <= 7; difference++) {
+      const transfers = (gold - blue + difference) / 2;
+      if (Number.isInteger(transfers) && blue + transfers <= 16) {
+        auroraPuzzles.push([blue, gold, difference]);
+      }
+    }
+  }
+}
+
 function shuffled(items) {
   const result = [...items];
   for (let index = result.length - 1; index > 0; index--) {
@@ -411,8 +450,9 @@ const startingPuzzles = {
   villam: ["5,13"],
   dupla: ["4,11"],
   vihar: ["4,13,2"],
+  eszaki: ["5,13,4"],
 };
-const puzzlesByLevel = { easy: puzzles, villam: balancePuzzles, dupla: doublePuzzles, vihar: stormPuzzles };
+const puzzlesByLevel = { easy: puzzles, villam: balancePuzzles, dupla: doublePuzzles, vihar: stormPuzzles, eszaki: auroraPuzzles };
 const puzzleIds = Object.fromEntries(Object.entries(puzzlesByLevel).map(([key, pool]) => [
   key, new Map(pool.map((puzzle) => [puzzle.join(","), puzzle])),
 ]));
@@ -496,7 +536,7 @@ function rememberSolution() {
 
 function startMission() {
   const cloudLevel = level !== "easy";
-  const doubling = level === "dupla" || level === "vihar";
+  const wideBoard = level === "dupla" || level === "vihar" || level === "eszaki";
   currentPuzzle = nextPuzzleId();
   [left, right, extra = 0] = puzzleIds[level].get(currentPuzzle);
   scene.dataset.level = level;
@@ -509,20 +549,21 @@ function startMission() {
   moves = [];
   solved = false;
   mission.classList.toggle("balance", cloudLevel);
-  mission.classList.toggle("double", doubling);
+  mission.classList.toggle("double", wideBoard);
+  cloudDifference.hidden = level !== "eszaki";
   for (const button of levelButtons) button.setAttribute("aria-pressed", String(button.dataset.level === level));
   trayName.textContent = cloudLevel ? "Kék felhő" : "Cikcakk";
   reserveName.textContent = cloudLevel ? "Aranyfelhő" : "Villámfelhő";
   powerCount.hidden = cloudLevel;
   undoMove.hidden = !cloudLevel;
-  answerLabel.textContent = doubling
+  answerLabel.textContent = wideBoard
     ? "Hány villámot húztál át?"
     : cloudLevel ? "Hány villám jutott egy felhőbe?" : "Válaszod";
   answerForm.hidden = !cloudLevel;
   answerValue.value = "";
   answerValue.removeAttribute("aria-invalid");
   nextMission.hidden = true;
-  slots = Array.from({ length: doubling ? 16 : cloudLevel ? 12 : 10 }, (_, index) => index < left ? "blue" : null);
+  slots = Array.from({ length: wideBoard ? 16 : cloudLevel ? 12 : 10 }, (_, index) => index < left ? "blue" : null);
   pieces = Array.from({ length: right }, (_, index) => index);
   selected = null;
   heading.textContent = "Ébreszd fel Cikcakkot!";
@@ -544,7 +585,16 @@ function render(droppedIndex) {
   tray.setAttribute("aria-label", cloudLevel ? `${filled} villám a kék felhőben` : `${filled} villám Cikcakknál`);
   reserve.setAttribute("aria-label", cloudLevel ? `${remaining} villám az aranyfelhőben` : `${remaining} villám a felhőben`);
   if (cloudLevel) {
-    if (level === "vihar") {
+    if (level === "eszaki") {
+      heading.textContent = "Gyújtsd fel az északi fényt!";
+      story.textContent = `Húzz át villámokat az aranyfelhőből a kékbe! A kék felhőben pontosan ${extra} villámmal legyen több.`;
+      tip.textContent = "Minden áthúzáskor a kék kap egy villámot, az arany veszít egyet. Így az arany előnye először csökken, majd a kék kerül előre. Figyeld meg, hogyan változik a különbség!";
+      const difference = filled - remaining;
+      cloudDifference.dataset.onTarget = String(difference === extra);
+      const reading = difference === 0 ? "Ugyanannyi villám van a két felhőben."
+        : `${Math.abs(difference)} villámmal több van ${difference > 0 ? "a kék felhőben" : "az aranyfelhőben"}.`;
+      if (cloudDifference.textContent !== reading) cloudDifference.textContent = reading;
+    } else if (level === "vihar") {
       heading.textContent = "Törd fel a viharkódot!";
       story.textContent = `Húzz át villámokat! A kék felhőben kétszer annyi legyen, mint az aranyfelhőben, és még ${extra} villám!`;
       tip.textContent = `Képzeld el, hogy félreteszed a ${extra} ráadásvillámot. A többit oszd három egyforma kupacra. Kettő a kékbe, egy az aranyba kerül. A ráadást add a kékhez!`;
@@ -615,7 +665,9 @@ function celebrate() {
   if (level !== "easy") render();
   answerForm.hidden = true;
   tray.dataset.awake = "true";
-  const reward = surprises[completed++ % surprises.length];
+  const reward = level === "eszaki"
+    ? { kind: "aurora", icon: "", message: "Felragyogott az északi fény!" }
+    : surprises[completed++ % surprises.length];
   celebration.hidden = false;
   surprise.textContent = reward.message;
   skySurprise.dataset.kind = reward.kind;
@@ -642,12 +694,13 @@ answerForm.addEventListener("submit", (event) => {
 
   const cloudLevel = level !== "easy";
   const doubling = level === "dupla" || level === "vihar";
+  const aurora = level === "eszaki";
   const blue = left + moves.length;
   const gold = pieces.length;
-  const target = doubling ? 2 * gold + extra : gold;
-  const expected = doubling ? moves.length : cloudLevel ? blue : left + right;
+  const target = doubling ? 2 * gold + extra : aurora ? gold + extra : gold;
+  const expected = doubling || aurora ? moves.length : cloudLevel ? blue : left + right;
   if (cloudLevel && blue !== target) {
-    if (doubling) {
+    if (doubling || aurora) {
       feedback.textContent = blue < target
         ? "A kék felhőbe még kell villám. Húzz még át!"
         : "Hopp, túl sok került a kék felhőbe. Tegyél vissza egyet!";
@@ -664,7 +717,7 @@ answerForm.addEventListener("submit", (event) => {
   if (!/^\d{1,2}$/.test(written)) {
     hint = "Írd be a választ számjegyekkel!";
   } else if (Number(written) !== expected) {
-    if (doubling) hint = "Számold meg a kék felhőbe áthúzott arany villámokat!";
+    if (doubling || aurora) hint = "Számold meg a kék felhőbe áthúzott arany villámokat!";
     else if (cloudLevel) hint = "Számold meg a villámokat az egyik felhőben!";
     else hint = "Indulj tíztől, és számolj tovább annyit, amennyi a felhőben maradt!";
   }
@@ -677,7 +730,9 @@ answerForm.addEventListener("submit", (event) => {
     return;
   }
 
-  if (doubling) {
+  if (aurora) {
+    feedback.textContent = `Sikerült! ${expected} villámot húztál át. A kékben ${blue}, az aranyban ${gold} villám van. A különbség ${extra}!`;
+  } else if (doubling) {
     const blueSum = extra > 0 ? `${gold} meg ${gold} meg ${extra}` : `${gold} meg ${gold}`;
     feedback.textContent = `Sikerült! ${expected} villámot húztál át. Az aranyfelhőben ${gold} maradt. A kékben ${blueSum}, vagyis ${blue} villám lett!`;
   } else if (cloudLevel) {
